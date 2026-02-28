@@ -1,0 +1,263 @@
+---
+title: "Lecture 2"
+author: "SK"
+date: 2026-02-25
+
+format:
+  html:
+    theme: cerulean
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    number-depth: 2
+    smooth-scroll: true
+    code-link: true
+    self-contained: true
+    embed-resources: true
+    code-fold: true
+
+editor: visual
+execute:
+  eval: false
+  freeze: auto
+---
+
+## 1
+
+1.  Counting new users from total users
+
+``` sql
+WITH UserInfo AS (
+SELECT
+user_pseudo_id,
+MAX(IF(event_name IN ('first_visit', 'first_open'), 1, 0)) AS is_new_user
+FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+WHERE _TABLE_SUFFIX BETWEEN '20201101' AND '20201130'
+GROUP BY user_pseudo_id
+)
+SELECT
+COUNT(*) AS total_users,
+SUM(is_new_user) AS new_users
+FROM UserInfo;
+```
+
+![](query%201.png)
+
+## 2
+
+1.  looks up page view events between 12/1 and 12/2 and limits the output to 50
+
+2.  shows purchase events in December, top 20 in descending order
+
+``` sql
+SELECT
+TIMESTAMP_MICROS(event_timestamp) AS event_time,
+(
+SELECT value.string_value
+FROM UNNEST(event_params)
+WHERE key = 'page_location' LIMIT 1
+) AS page_location
+FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+WHERE event_name = 'page_view'
+AND _TABLE_SUFFIX BETWEEN '20201201' AND '20201202'
+LIMIT 50;
+
+
+
+
+
+SELECT
+event_date,
+item.item_name,
+COUNT(*) AS item_rows
+FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*` e,
+UNNEST(e.items) AS item
+WHERE e.event_name = 'purchase'
+AND _TABLE_SUFFIX BETWEEN '20201201' AND '20201231'
+GROUP BY event_date, item.item_name
+ORDER BY item_rows DESC
+LIMIT 20;
+```
+
+![](query%202.png)
+
+## 3
+
+1.  distinct events during December 1-3rd, grouped by date
+
+2.  user ids of first 10 users and what items they added to cart
+
+3.  cart summary of what users added, including quantity and price, limit 10 cart items, grouped by user_id
+
+``` sql
+
+SELECT
+event_date,
+STRING_AGG(DISTINCT event_name, ', ' ORDER BY event_name) AS events_seen
+FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+WHERE _TABLE_SUFFIX BETWEEN '20201201' AND '20201203'
+GROUP BY event_date
+ORDER BY event_date;
+-- Task: Create a list of items per session
+
+SELECT
+    user_pseudo_id,
+    ARRAY_AGG(item_name) AS items_added_to_cart
+FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`,
+UNNEST(items) AS item
+WHERE event_name = 'add_to_cart'
+AND _TABLE_SUFFIX BETWEEN '20201201' AND '20201231'
+GROUP BY user_pseudo_id
+ORDER BY user_pseudo_id
+LIMIT 10;
+
+-- Session-level "cart summary" using ARRAY_AGG
+
+WITH add_to_cart AS (
+  SELECT
+    user_pseudo_id,
+    (
+      SELECT value.int_value 
+      FROM UNNEST(event_params) 
+      WHERE key = 'ga_session_id'
+    ) AS session_id,
+    TIMESTAMP_MICROS(event_timestamp) AS event_timestamp,
+    i.item_id,
+    i.item_name,
+    i.quantity,
+    i.price
+  FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`,
+  UNNEST(items) AS i
+  WHERE event_name = 'add_to_cart'
+    AND _TABLE_SUFFIX BETWEEN '20210101' AND '20211231'  -- cost control
+)
+SELECT
+  user_pseudo_id,
+  session_id,
+  COUNT(*) AS total_add_to_cart_events,              -- added insight
+  ARRAY_AGG(
+    STRUCT(item_id, item_name, quantity, price, event_timestamp)
+    ORDER BY quantity DESC, event_timestamp ASC
+    LIMIT 10
+  ) AS cart_items
+FROM add_to_cart
+WHERE session_id IS NOT NULL                          --  filter nulls
+GROUP BY user_pseudo_id, session_id;
+```
+
+![](query%203.png)
+
+## 4
+
+1.  pulls daily users and purchases as distinct events, then provides % of conversion rate
+
+``` sql
+
+WITH daily_users AS (
+  SELECT
+    event_date,
+    COUNT(DISTINCT user_pseudo_id) AS users
+  FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+  WHERE _TABLE_SUFFIX BETWEEN '20201201' AND '20201231'
+  GROUP BY event_date
+),
+daily_purchases AS (
+  SELECT
+    event_date,
+    COUNT(DISTINCT
+      (SELECT value.string_value
+       FROM UNNEST(event_params)
+       WHERE key = 'transaction_id')
+    ) AS purchases    -- distinct transactions
+  FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+  WHERE event_name = 'purchase'
+    AND _TABLE_SUFFIX BETWEEN '20201201' AND '20201231'
+  GROUP BY event_date
+)
+SELECT
+  u.event_date,
+  u.users,
+  -- turns “no purchase row (NULL)” into 0 purchases, which is what you want for a daily time series
+  IFNULL(p.purchases, 0) AS purchases,              
+  -- Conversion rate: what % of daily users made a purchase
+  ROUND(
+    IFNULL(p.purchases, 0) / NULLIF(u.users, 0) * 100, 2
+  ) AS conversion_rate_pct        -- NULLIF prevents division by zero
+FROM daily_users u
+LEFT JOIN daily_purchases p
+  ON u.event_date = p.event_date
+ORDER BY u.event_date;
+```
+
+![](query%204.png)
+
+## 5
+
+1.  counting daily event counts, ranking the top 3
+
+2.  shows 7 day average purchases (kind of like a time series?) in December\
+
+``` sql
+
+WITH daily_event_counts AS (
+SELECT
+event_date,
+event_name,
+COUNT(*) AS events
+FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+WHERE _TABLE_SUFFIX BETWEEN '20201201' AND '20201207'
+GROUP BY event_date, event_name
+)
+SELECT
+event_date,
+event_name,
+events,
+RANK() OVER (PARTITION BY event_date ORDER BY events DESC) AS rnk
+FROM daily_event_counts
+QUALIFY rnk <= 3 
+ORDER BY event_date, rnk;
+
+WITH daily_purchases AS (
+SELECT
+PARSE_DATE('%Y%m%d', event_date) AS dt,
+COUNT(*) AS purchases
+FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+WHERE event_name = 'purchase'
+AND _TABLE_SUFFIX BETWEEN '20201201' AND '20201231' GROUP BY dt
+)
+SELECT
+dt,
+purchases,
+AVG(purchases) OVER (
+ORDER BY dt
+ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+) AS purchases_7d_avg
+FROM daily_purchases
+ORDER BY dt;
+```
+
+![](query%205.png)
+
+## 6
+
+1.  trying to estimate the approximate unique user ids for all events in December, grouped by event and ordering the top 15
+
+``` sql
+
+SELECT
+event_name,
+APPROX_COUNT_DISTINCT(user_pseudo_id) AS approx_users
+FROM `bigquery-public-data.ga4_obfuscated_sample_ecommerce.events_*`
+WHERE _TABLE_SUFFIX BETWEEN '20201201' AND '20201231'
+GROUP BY event_name
+ORDER BY approx_users DESC
+LIMIT 15;
+```
+
+![](query%206.png)
+
+::: {.callout-important style="color: red"}
+**here is a screenshot of all lines run in BigQuery with timestamp during class:**
+:::
+
+![](lecture%202.png)
