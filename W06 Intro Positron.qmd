@@ -1,0 +1,62 @@
+---
+title: "W06-Reflection Essay-Introduction to Positron"
+author: "SK"
+date: '03/13/2026'
+format: 
+  html: 
+    theme: cerulean
+    toc: true
+    toc-depth: 4
+    number-sections: true
+    code-link: true
+    embed-resources: true
+editor: visual
+execute: 
+  freeze: auto
+---
+
+<div>
+
+#### **Essay Prompts:**
+
+</div>
+
+1.  <div>
+
+    > Download and Install Positron. As you watch the videos in Step 1 and Step 3, follow the activities in the video and be familiar with Positron.
+
+    </div>
+
+2.  **Based on what you learned from Step 1 and Step 3, what do you like about Positron compared with RStudio?**
+
+    -   At first, I was a bit confused about Positron's UI, and it took me a little bit of time to get used to it. Now, I feel that Positron provides a more seamless user interface than R, and actually feel like we could've introduced and integrated Positron a bit sooner in our earlier courses. It provides an integrated work environment that can connect to Github and provide a nice layout for your workflow.
+
+3.  In Step 4, the video demonstrates how you can use AI. 
+
+    1.  **Describe the various ways you can use AI inside Positron. Some are free while others are not.**
+
+        -   The first and simplest way to use AI inside Positron is it's built-in Positron Assistant. This allows you to ask quick questions for reference while you create your document from the left sidebar. There is also Github copilot which you can access from the AI assistant after you set up.
+
+    2.  **Which AI tools have you installed or set up? Which AI tools did you find beneficial for you?**
+
+        -   So far, I have only used the Positron built in assistant, it helped me figure out how to publish to Github pages properly.
+
+    3.  **I strongly recommend using GitHub Copilot, which is free if you apply for an education account.**
+
+        1.  Apply for it and take a screenshot showing you were accepted into the education program. 
+
+            -   I have applied for it, not accepted yet.
+
+        2.  Play with it and do you find it helpful or distracting? Please elaborate
+
+            -   I believe it will be extremely helpful as continue to get familiar with Positron and rendering files properly with the connection to Github.
+
+4.  <div>
+
+    > Publish this report to GitHub Pages and provide a URL to the GitHub Pages for the report. Note that although both GitHub Pages and GitHub repo are online, they are different. GitHub Pages is a website publishing service that hosts the rendered HTML from a QMD file.
+
+    </div>
+
+------------------------------------------------------------------------
+
+Github URL:
